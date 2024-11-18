@@ -28,7 +28,7 @@ async fn main() -> Result<(), ec2::Error> {
                 break
             },
             "1" => {
-                println!("\n1. list instabce");
+                println!("\n1. Listing instances....");
                 // EC2 instances 리스트 
                 let response = client.describe_instances().send().await?;
 
@@ -43,6 +43,17 @@ async fn main() -> Result<(), ec2::Error> {
                         println!();
                     }
                 }
+            },
+            "2" => {
+                println!("\n2. Available zones....");
+
+                let response = client.describe_availability_zones().send().await?;
+                let r = response.availability_zones.unwrap();
+                let available_cnt = r.len();
+                for val in r {
+                    println!("[id] {}, [region] {}, [zone] {}",val.zone_id().unwrap(), val.region_name().unwrap(), val.zone_name().unwrap());
+                }
+                println!("You have access to {} Availability Zones.", available_cnt);
             },
             _ => println!("wrong input")
         }
@@ -63,5 +74,5 @@ fn print_menu() {
     println!("                                 99. quit                   ");
     println!("------------------------------------------------------------");   
     print!("Enter an integer: ");
-    io::stdout().flush();
+    let _ = io::stdout().flush();
 }
