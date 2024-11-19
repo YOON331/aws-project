@@ -52,7 +52,7 @@ async fn main() -> Result<(), ec2::Error> {
                 let r = response.availability_zones.unwrap();
                 let available_cnt = r.len();
                 for val in r {
-                    println!("[ID] {}, [region] {}, [zone] {}",val.zone_id().unwrap(), val.region_name().unwrap(), val.zone_name().unwrap());
+                    println!("[ID] {} [region] {: <15 } [zone] {}",val.zone_id().unwrap(), val.region_name().unwrap(), val.zone_name().unwrap());
                 }
                 println!("You have access to {} Availability Zones.", available_cnt);
             },
@@ -76,7 +76,20 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             },
             "4" => {
-                
+                println!("\n4. Available regions....");
+
+                let response = client.describe_regions().send().await;
+
+                match response {
+                    Ok(val) => {
+                        for r in val.regions() {
+                            println!("[region] {: <15} [endpoint] {}", r.region_name.clone().unwrap(), r.endpoint.clone().unwrap());
+                        }
+                    },
+                    Err(e) => {
+                        println!("{}",e);
+                    },
+                }
             },
             "5" => {
                 print!("Enter instance id: ");
