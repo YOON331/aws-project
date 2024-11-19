@@ -30,7 +30,7 @@ async fn main() -> Result<(), ec2::Error> {
                 break;
             }
             "1" => {
-                println!("\n1. Listing instances....");
+                println!("1. Listing instances....");
                 // EC2 instances 리스트
                 let response = client.describe_instances().send().await?;
 
@@ -53,7 +53,7 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             }
             "2" => {
-                println!("\n2. Available zones....");
+                println!("2. Available zones....");
 
                 let response = client.describe_availability_zones().send().await?;
                 let r = response.availability_zones.unwrap();
@@ -69,7 +69,7 @@ async fn main() -> Result<(), ec2::Error> {
                 println!("You have access to {} Availability Zones.", available_cnt);
             }
             "3" => {
-                print!("Enter instance id: ");
+                print!("3. Enter instance id: ");
                 let _ = io::stdout().flush();
                 let mut instance_id = String::new();
                 io::stdin()
@@ -96,7 +96,7 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             }
             "4" => {
-                println!("\n4. Available regions....");
+                println!("4. Available regions....");
 
                 let response = client.describe_regions().send().await;
 
@@ -116,7 +116,7 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             }
             "5" => {
-                print!("Enter instance id: ");
+                print!("5. Enter instance id: ");
                 let _ = io::stdout().flush();
                 let mut instance_id = String::new();
                 io::stdin()
@@ -143,7 +143,7 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             }
             "6" => {
-                print!("Enter AMI id: ");
+                print!("6. Enter AMI id: ");
                 let _ = io::stdout().flush();
                 let mut ami_id = String::new();
                 io::stdin()
@@ -174,7 +174,7 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             }
             "7" => {
-                print!("Enter instance id: ");
+                print!("7. Enter instance id: ");
                 let _ = io::stdout().flush();
                 let mut instance_id = String::new();
                 io::stdin()
@@ -196,7 +196,8 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             }
             "8" => {
-                let request = client.describe_images().owners("509399609684");
+                println!("8. Listing images....");
+                let request = client.describe_images().owners("509399609684");  /// owners id로 조회
                 let response = request.send().await;
 
                 match response {
