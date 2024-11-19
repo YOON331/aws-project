@@ -76,10 +76,26 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             },
             "4" => {
-
+                
             },
             "5" => {
+                print!("Enter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin().read_line(&mut instance_id).expect("failed to read line");
+                let instance_id = instance_id.trim();
 
+                let request = client.stop_instances().instance_ids(instance_id);
+                let response = request.send().await;
+
+                match response {
+                    Ok(val) => {
+                        for r in val.stopping_instances.unwrap() {
+                            println!("\nSuccessfully stop [instance ID] {}", r.instance_id.unwrap());
+                        }
+                    }
+                    Err(_) => println!("\nInvalid instance ID entered.\nPlease check the instance ID."),
+                }
             },
             "6" => {
 
