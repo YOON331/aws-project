@@ -8,6 +8,7 @@ async fn main() -> Result<(), ec2::Error> {
     // AWS configuration 파일 읽어오기
     let config = aws_config::from_env()
         .profile_name("root-access") // AWS CLI의 특정 profile name의 설정값
+        .region("us-east-1")
         .load()
         .await;
 
@@ -31,7 +32,7 @@ async fn main() -> Result<(), ec2::Error> {
                 println!("\n1. Listing instances....");
                 // EC2 instances 리스트 
                 let response = client.describe_instances().send().await?;
-
+                
                 // 응답된 리스트 매핑하여 출력
                 for reservation in response.reservations() {
                     for instance in reservation.instances() {
@@ -51,11 +52,44 @@ async fn main() -> Result<(), ec2::Error> {
                 let r = response.availability_zones.unwrap();
                 let available_cnt = r.len();
                 for val in r {
-                    println!("[id] {}, [region] {}, [zone] {}",val.zone_id().unwrap(), val.region_name().unwrap(), val.zone_name().unwrap());
+                    println!("[ID] {}, [region] {}, [zone] {}",val.zone_id().unwrap(), val.region_name().unwrap(), val.zone_name().unwrap());
                 }
                 println!("You have access to {} Availability Zones.", available_cnt);
             },
-            _ => println!("wrong input")
+            "3" => {
+                print!("Enter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin().read_line(&mut instance_id).expect("failed to read line");
+                let instance_id = instance_id.trim();
+
+                let request = client.start_instances().instance_ids(instance_id);
+                let response = request.send().await;
+
+                match response {
+                    Ok(val) => {
+                        for r in val.starting_instances.unwrap() {
+                            println!("\nSuccessfully started [instance ID] {}", r.instance_id.unwrap());
+                        }
+                    }
+                    Err(_) => println!("\nInvalid instance ID entered.\nPlease check the instance ID."),
+                }
+            },
+            "4" => {
+
+            },
+            "5" => {
+
+            },
+            "6" => {
+
+            },
+            "7" => {
+
+            },
+            "8" => {
+            },
+            _ => println!("Wrong input")
         }
     }
     Ok(())
