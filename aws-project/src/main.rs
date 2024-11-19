@@ -1,6 +1,6 @@
-use std::io::{self, Write};
+use std::{any::Any, io::{self, Write}};
 
-use aws_sdk_ec2 as ec2;
+use aws_sdk_ec2::{self as ec2, types::InstanceType};
 use aws_config;
 
 #[::tokio::main]
@@ -111,7 +111,21 @@ async fn main() -> Result<(), ec2::Error> {
                 }
             },
             "6" => {
+                print!("Enter AMI id: ");
+                let _ = io::stdout().flush();
+                let mut ami_id = String::new();
+                io::stdin().read_line(&mut ami_id).expect("failed to read line");
+                let ami_id = ami_id.trim();
 
+                let request = client.run_instances().image_id(ami_id).instance_type(InstanceType::T2Micro).max_count(1).min_count(1);
+                let response = request.send().await;
+
+                match response {
+                    Ok(val) => {
+                        println!("\nSuccessfully started EC2 instance {} based on AMI {}", val.reservation_id.unwrap(), ami_id);
+                    }
+                    Err(e) => println!("\nInvalid instance ID entered.\nPlease check the instance ID.\n{}", e),
+                }
             },
             "7" => {
                 print!("Enter instance id: ");
