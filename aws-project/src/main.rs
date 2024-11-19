@@ -72,7 +72,7 @@ async fn main() -> Result<(), ec2::Error> {
                             println!("\nSuccessfully started [instance ID] {}", r.instance_id.unwrap());
                         }
                     }
-                    Err(_) => println!("\nInvalid instance ID entered.\nPlease check the instance ID."),
+                    Err(e) => println!("\nInvalid instance ID entered.\nPlease check the instance ID.\n{}",e),
                 }
             },
             "4" => {
@@ -91,17 +91,31 @@ async fn main() -> Result<(), ec2::Error> {
                 match response {
                     Ok(val) => {
                         for r in val.stopping_instances.unwrap() {
-                            println!("\nSuccessfully stop [instance ID] {}", r.instance_id.unwrap());
+                            println!("\nSuccessfully stopped [instance ID] {}", r.instance_id.unwrap());
                         }
                     }
-                    Err(_) => println!("\nInvalid instance ID entered.\nPlease check the instance ID."),
+                    Err(e) => println!("\nInvalid instance ID entered.\nPlease check the instance ID.\n{}",e),
                 }
             },
             "6" => {
 
             },
             "7" => {
+                print!("Enter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin().read_line(&mut instance_id).expect("failed to read line");
+                let instance_id = instance_id.trim();
 
+                let request = client.reboot_instances().instance_ids(instance_id);
+                let response = request.send().await;
+
+                match response {
+                    Ok(_) => {
+                        println!("\nSuccessfully rebooted [instance ID] {}", instance_id);
+                    }
+                    Err(e) => println!("\nInvalid instance ID entered.\nPlease check the instance ID.\n{}", e),
+                }
             },
             "8" => {
             },
