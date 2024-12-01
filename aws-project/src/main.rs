@@ -2,6 +2,7 @@ use std::io::{self, Write};
 
 use aws_config;
 use aws_sdk_ec2::{self as ec2, types::InstanceType};
+use aws_sdk_ssm::{self as ssm, Client as SsmClient};
 
 #[::tokio::main]
 async fn main() -> Result<(), ec2::Error> {
@@ -197,7 +198,8 @@ async fn main() -> Result<(), ec2::Error> {
             }
             "8" => {
                 println!("8. Listing images....");
-                let request = client.describe_images().owners("509399609684");  /// owners id로 조회
+                // owners id로 조회
+                let request = client.describe_images().owners("509399609684");
                 let response = request.send().await;
 
                 match response {
@@ -218,6 +220,86 @@ async fn main() -> Result<(), ec2::Error> {
                     ),
                 }
             }
+            "9" => {
+                print!("9. Enter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin()
+                    .read_line(&mut instance_id)
+                    .expect("failed to read line");
+                let instance_id = instance_id.trim();
+
+                let ssm_client = SsmClient::new(&config);
+
+                // `condor_status` 명령 실행 요청
+                let response = ssm_client
+                    .send_command()
+                    .document_name("AWS-RunShellScript") // AWS에서 제공하는 기본 문서
+                    .instance_ids(instance_id.to_string())
+                    .parameters("commands", vec!["condor_status".to_string()])
+                    .send()
+                    .await;
+                match response {
+                    Ok(command_response) => {
+                        let command_id = command_response
+                            .command()
+                            .and_then(|cmd| cmd.command_id())
+                            .expect("Failed to retrieve command ID");
+                
+                        println!("Command ID: {}", command_id);
+                
+                        // 명령 실행 결과 가져오기
+                        loop {
+                            let result = ssm_client
+                                .get_command_invocation()
+                                .command_id(command_id)
+                                .instance_id(&*instance_id)
+                                .send()
+                                .await;
+                
+                            match result {
+                                Ok(invocation_response) => {
+                                    if let Some(status) = invocation_response.status() {
+                                        match status.as_str() {
+                                            "InProgress" | "Pending" => {
+                                                println!("Command is still running...");
+                                                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                                continue;
+                                            }
+                                            "Success" => {
+                                                if let Some(output) = invocation_response.standard_output_content() {
+                                                    println!("Command Output:\n{}", output);
+                                                } else {
+                                                    println!("No output from command.");
+                                                }
+                                                break;
+                                            }
+                                            _ => {
+                                                eprintln!("Command failed with status: {}", status);
+                                                if let Some(error) = invocation_response.standard_error_content() {
+                                                    eprintln!("Error Output:\n{}", error);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to fetch command output: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "Failed to execute `condor_status` command on instance {}: {:?}",
+                            instance_id, e
+                        );
+                    }
+                }
+                
+            }
             _ => println!("Wrong input"),
         }
     }
@@ -234,6 +316,7 @@ fn print_menu() {
     println!("  3. start instance               4. available regions      ");
     println!("  5. stop instance                6. create instance        ");
     println!("  7. reboot instance              8. list images            ");
+    println!("  9. condor_status                                          ");
     println!("                                 99. quit                   ");
     println!("------------------------------------------------------------");
     print!("Enter an integer: ");
