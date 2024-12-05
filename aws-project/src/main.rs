@@ -1,11 +1,14 @@
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
+use chrono::{Datelike, NaiveDateTime, TimeZone, Utc};
 use aws_config;
 use aws_sdk_ec2::{self as ec2, types::InstanceType};
 use aws_sdk_ssm::{self as ssm, Client as SsmClient};
 use aws_sdk_cloudwatch::Client as CWClient;
 use aws_sdk_cloudwatch::types::{Dimension, Statistic};
 use aws_sdk_ec2::primitives::DateTime;
+use aws_sdk_costexplorer as costexplorer;
+use aws_sdk_costexplorer::types::{DateInterval, GroupDefinition};
 
 #[::tokio::main]
 async fn main() -> Result<(), ec2::Error> {
@@ -390,7 +393,84 @@ async fn main() -> Result<(), ec2::Error> {
                     Err(e) => eprintln!("Failed to fetch CloudWatch metrics: {:?}", e),
                 }
             }
+            "12" => {
+                let cost_client=aws_sdk_costexplorer::Client::new(&config);
 
+                // 현재 월의 시작 날짜 계산
+                let start_date = chrono::Utc::now()
+                    .with_day(1)
+                    .unwrap()
+                    .format("%Y-%m-%d")
+                    .to_string();
+                let end_date = chrono::Utc::now()
+                    .format("%Y-%m-%d")
+                    .to_string();
+
+                // 비용 조회 요청 생성
+                match cost_client
+                    .get_cost_and_usage()
+                    .time_period(
+                        DateInterval::builder()
+                            .start(start_date)
+                            .end(end_date)
+                            .build().unwrap(),
+                    )
+                    .granularity("MONTHLY".into())
+                    .metrics("BlendedCost")
+                    .group_by(
+                        GroupDefinition::builder()
+                        .key("SERVICE")
+                        .r#type("DIMENSION".into())
+                        .build()
+                    )   
+                    .send()
+                    .await
+                {
+                    Ok(response) => {
+                        match response.results_by_time {
+                            Some(result) => {
+                                for val in result.iter() {
+                                    println!(
+                                        "Fetching cost details from {} to {}",
+                                        val.time_period.clone().unwrap().start,
+                                        val.time_period.clone().unwrap().end,
+                                    );
+                            
+                                    if let Some(groups) = &val.groups {
+                                        for group in groups {
+                                            let service_name = group.keys.as_ref().map_or("Unknown Service".to_string(), |keys| keys.join(", "));
+                                            if let Some(metrics) = &group.metrics {
+                                                if let Some(blended_cost) = metrics.get("BlendedCost") {
+                                                    let amount = blended_cost.amount.clone().unwrap_or("0".to_string());
+                                                    let unit = blended_cost.unit.clone().unwrap_or("USD".to_string());
+                                                    println!("Service: {}, Cost: {} {}", service_name, amount, unit);
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        println!("No group data found.");
+                                    }
+                            
+                                    if let Some(total) = &val.total {
+                                        for (metric_name, metric_value) in total {
+                                            println!(
+                                                "Total {}: {} {}",
+                                                metric_name,
+                                                metric_value.amount.clone().unwrap_or("0".to_string()),
+                                                metric_value.unit.clone().unwrap_or("USD".to_string())
+                                            );
+                                        }
+                                    }
+                                    println!("Estimated: {}", val.estimated);
+                                }
+                            },
+                            
+                            None => println!("No data points found for the specified metric."),
+                        }
+                    }
+                    Err(e) => println!("Failed to fetch cost details: {}", e),
+                }
+            }
             _ => println!("Wrong input"),       
         }
     }
@@ -408,7 +488,7 @@ fn print_menu() {
     println!("  5. stop instance                6. create instance        ");
     println!("  7. reboot instance              8. list images            ");
     println!("  9. condor_status               10. terminate instance     ");
-    println!(" 11. CPU Utilization                                        ");
+    println!(" 11. CPU Utilization             12. Cost Analysis          ");
     println!("                                 99. quit                   ");
     println!("------------------------------------------------------------");
     print!("Enter an integer: ");
