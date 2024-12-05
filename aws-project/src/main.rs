@@ -169,7 +169,7 @@ async fn main() -> Result<(), ec2::Error> {
                         );
                     }
                     Err(e) => println!(
-                        "\nInvalid instance ID entered.\nPlease check the instance ID.\n{}",
+                        "\nInvalid AMI ID entered.\nPlease check the AMI ID.\n{}",
                         e
                     ),
                 }
