@@ -1,8 +1,11 @@
 use std::io::{self, Write};
-
+use std::time::{SystemTime, UNIX_EPOCH};
 use aws_config;
 use aws_sdk_ec2::{self as ec2, types::InstanceType};
 use aws_sdk_ssm::{self as ssm, Client as SsmClient};
+use aws_sdk_cloudwatch::Client as CWClient;
+use aws_sdk_cloudwatch::types::{Dimension, Statistic};
+use aws_sdk_ec2::primitives::DateTime;
 
 #[::tokio::main]
 async fn main() -> Result<(), ec2::Error> {
@@ -322,7 +325,73 @@ async fn main() -> Result<(), ec2::Error> {
                     ),
                 }
             }
-            _ => println!("Wrong input"),
+            "11" => {
+                let cw_client = CWClient::new(&config);
+                let now = SystemTime::now();
+                let start_time = DateTime::from_secs(
+                    (now.duration_since(UNIX_EPOCH).unwrap().as_secs() - 3600).try_into().unwrap(),
+                );
+                let end_time = DateTime::from_secs(
+                    now.duration_since(UNIX_EPOCH).unwrap().as_secs().try_into().unwrap(),
+                );
+
+                print!("Enter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin()
+                    .read_line(&mut instance_id)
+                    .expect("failed to read line");
+                let instance_id = instance_id.trim();
+                let namespace = "AWS/EC2";
+                let metric_name = "CPUUtilization";
+
+                match cw_client
+                    .get_metric_statistics()
+                    .namespace(namespace)
+                    .metric_name(metric_name)
+                    .start_time(start_time)
+                    .end_time(end_time)
+                    .period(60)
+                    .statistics(Statistic::Average)
+                    .dimensions(
+                        Dimension::builder()
+                            .name("InstanceId")
+                            .value(instance_id)
+                            .build(),
+                    )
+                    .unit("Percent".into())
+                    .send()
+                    .await
+                {
+                    Ok(response) => {
+                        match response.datapoints {
+                            Some(data) => {
+                                if !data.is_empty() {
+                                    println!("CPU Utilization Report");
+                                    for point in data.iter() {
+                                        if let Some(timestamp) = point.timestamp() {
+                                            if let Some(average) = point.average() {
+                                                println!(
+                                                    "Time: {:?} | Average CPU: {:.2}%",
+                                                    timestamp,
+                                                    average
+                                                );
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    println!("No data points found for the specified metric.");
+                                }
+                                
+                            }
+                            _ => println!("No data points found for the specified metric."),
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to fetch CloudWatch metrics: {:?}", e),
+                }
+            }
+
+            _ => println!("Wrong input"),       
         }
     }
     Ok(())
@@ -339,6 +408,7 @@ fn print_menu() {
     println!("  5. stop instance                6. create instance        ");
     println!("  7. reboot instance              8. list images            ");
     println!("  9. condor_status               10. terminate instance     ");
+    println!(" 11. CPU Utilization                                        ");
     println!("                                 99. quit                   ");
     println!("------------------------------------------------------------");
     print!("Enter an integer: ");
