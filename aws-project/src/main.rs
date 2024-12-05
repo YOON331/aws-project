@@ -300,6 +300,28 @@ async fn main() -> Result<(), ec2::Error> {
                 }
                 
             }
+            "10" => {
+                print!("10. terminate instance\nEnter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin()
+                    .read_line(&mut instance_id)
+                    .expect("failed to read line");
+                let instance_id = instance_id.trim();
+
+                let request = client.terminate_instances().instance_ids(instance_id);
+                let response = request.send().await;
+
+                match response {
+                    Ok(_) => {
+                        println!("\nSuccessfully terminated [instance ID] {}", instance_id);
+                    }
+                    Err(e) => println!(
+                        "\nInvalid instance ID entered.\nPlease check the instance ID.\n{}",
+                        e
+                    ),
+                }
+            }
             _ => println!("Wrong input"),
         }
     }
@@ -316,7 +338,7 @@ fn print_menu() {
     println!("  3. start instance               4. available regions      ");
     println!("  5. stop instance                6. create instance        ");
     println!("  7. reboot instance              8. list images            ");
-    println!("  9. condor_status                                          ");
+    println!("  9. condor_status               10. terminate instance     ");
     println!("                                 99. quit                   ");
     println!("------------------------------------------------------------");
     print!("Enter an integer: ");
