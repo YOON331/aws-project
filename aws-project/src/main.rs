@@ -1,13 +1,12 @@
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
-use chrono::{Datelike, NaiveDateTime, TimeZone, Utc};
+use chrono::Datelike;
 use aws_config;
 use aws_sdk_ec2::{self as ec2, types::InstanceType};
-use aws_sdk_ssm::{self as ssm, Client as SsmClient};
+use aws_sdk_ssm::Client as SsmClient;
 use aws_sdk_cloudwatch::Client as CWClient;
 use aws_sdk_cloudwatch::types::{Dimension, Statistic};
 use aws_sdk_ec2::primitives::DateTime;
-use aws_sdk_costexplorer as costexplorer;
 use aws_sdk_costexplorer::types::{DateInterval, GroupDefinition};
 
 #[::tokio::main]
