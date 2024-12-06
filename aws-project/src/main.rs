@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
+use aws_sdk_ec2::types::IamInstanceProfileSpecification;
 use chrono::Datelike;
 use aws_config;
 use aws_sdk_ec2::{self as ec2, types::InstanceType};
@@ -157,12 +158,18 @@ async fn main() -> Result<(), ec2::Error> {
                     .expect("failed to read line");
                 let ami_id = ami_id.trim();
 
+                let iam_instance_profile = IamInstanceProfileSpecification::builder()
+                    .name("EC2SSMRole") // 인스턴스 프로파일 이름
+                    .build();
+                
                 let request = client
                     .run_instances()
                     .image_id(ami_id)
                     .instance_type(InstanceType::T2Micro)
                     .max_count(1)
-                    .min_count(1);
+                    .min_count(1)
+                    .iam_instance_profile(iam_instance_profile)
+                    .key_name("cloud-yoon".to_string());
                 let response = request.send().await;
 
                 match response {
@@ -472,6 +479,93 @@ async fn main() -> Result<(), ec2::Error> {
                     Err(e) => println!("Failed to fetch cost details: {}", e),
                 }
             }
+            "13" => {
+                print!("13. Enter instance id: ");
+                let _ = io::stdout().flush();
+                let mut instance_id = String::new();
+                io::stdin()
+                    .read_line(&mut instance_id)
+                    .expect("failed to read line");
+                let instance_id = instance_id.trim();
+
+                print!("Enter command-line: ");
+                let _ = io::stdout().flush();
+                let mut command_line = String::new();
+                io::stdin()
+                    .read_line(&mut command_line)
+                    .expect("failed to read line");
+                
+
+                let ssm_client = SsmClient::new(&config);
+                let op = vec![command_line.clone()];
+                // Shell script 명령 실행 요청
+                let response = ssm_client
+                    .send_command()
+                    .document_name("AWS-RunShellScript") // AWS에서 제공하는 기본 문서
+                    .instance_ids(instance_id.to_string())
+                    .parameters("commands", op)
+                    .send()
+                    .await;
+                match response {
+                    Ok(command_response) => {
+                        let command_id = command_response
+                            .command()
+                            .and_then(|cmd| cmd.command_id())
+                            .expect("Failed to retrieve command ID");
+                
+                        println!("Command ID: {}", command_id);
+                
+                        // 명령 실행 결과 가져오기
+                        loop {
+                            let result = ssm_client
+                                .get_command_invocation()
+                                .command_id(command_id)
+                                .instance_id(&*instance_id)
+                                .send()
+                                .await;
+                
+                            match result {
+                                Ok(invocation_response) => {
+                                    if let Some(status) = invocation_response.status() {
+                                        match status.as_str() {
+                                            "InProgress" | "Pending" => {
+                                                println!("Command is still running...");
+                                                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                                continue;
+                                            }
+                                            "Success" => {
+                                                if let Some(output) = invocation_response.standard_output_content() {
+                                                    println!("Command Output:\n{}", output);
+                                                } else {
+                                                    println!("No output from command.");
+                                                }
+                                                break;
+                                            }
+                                            _ => {
+                                                eprintln!("Command failed with status: {}", status);
+                                                if let Some(error) = invocation_response.standard_error_content() {
+                                                    eprintln!("Error Output:\n{}", error);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to fetch command output: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "Failed to execute {} command on instance {}: {:?}",
+                            command_line,instance_id, e
+                        );
+                    }
+                }
+            }
             _ => println!("Wrong input"),       
         }
     }
@@ -490,6 +584,7 @@ fn print_menu() {
     println!("  7. reboot instance              8. list images            ");
     println!("  9. condor_status               10. terminate instance     ");
     println!(" 11. CPU Utilization             12. Cost Analysis          ");
+    println!(" 13. Run Shell Command                                      ");
     println!("                                 99. quit                   ");
     println!("------------------------------------------------------------");
     print!("Enter an integer: ");
