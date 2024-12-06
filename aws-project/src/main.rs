@@ -167,10 +167,12 @@ async fn main() -> Result<(), ec2::Error> {
 
                 match response {
                     Ok(val) => {
+                        let mut new_id:Vec<String> = val.instances.unwrap().iter().map(
+                            |element| element.instance_id.clone().unwrap(),
+                        ).collect();
                         println!(
                             "\nSuccessfully started EC2 instance {} based on AMI {}",
-                            val.reservation_id.unwrap(),
-                            ami_id
+                            new_id.pop().unwrap(), ami_id
                         );
                     }
                     Err(e) => println!(
